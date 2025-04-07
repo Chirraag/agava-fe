@@ -1,7 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, ChevronLeft, ChevronRight,  ChevronUp,  ChevronDown } from 'lucide-react';
-import Millis from '@millisai/web-sdk';
-import axios from 'axios';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Mic,
+  MicOff,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
+import Millis from "@millisai/web-sdk";
+import axios from "axios";
+import { STATUS } from "../constants";
+import { Spinner } from "@nextui-org/react";
 
 interface InteractiveAvatarProps {
   sessionId: string;
@@ -11,23 +20,35 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
   const [isCallActive, setIsCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'none'>('none');
+  const [connectionQuality, setConnectionQuality] = useState<
+    "good" | "poor" | "none"
+  >("none");
   const [callDuration, setCallDuration] = useState(0);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [analysis, setAnalysis] = useState<any>(null);
-  const [secondCallAgentId, setSecondCallAgentId] = useState<string | null>(null);
-  const [previousSessionId, setPreviousSessionId] = useState<string | null>(null);
-  
+  const [secondCallAgentId, setSecondCallAgentId] = useState<string | null>(
+    null,
+  );
+  const [secondCallStatus, setSecondCallStatus] = useState<string | null>(null);
+  const [secondCallMillisSessionId, setSecondCallMillisSessionId] = useState<
+    string | null
+  >(null);
+  const [previousSessionId, setPreviousSessionId] = useState<string | null>(
+    null,
+  );
+  const [imagesLoaded, setImagesLoaded] = useState<boolean[]>([]);
+  const [allImagesLoaded, setAllImagesLoaded] = useState(false);
+
   const msClient = useRef<any>(null);
   const mediaStream = useRef<MediaStream | null>(null);
   const durationInterval = useRef<NodeJS.Timeout | null>(null);
 
   const images = [
-    '/call2-1.jpg',
-    '/call2-2.jpg',
-    '/call2-3.jpg',
-    '/call2-4.jpg',
-    '/call2-5.jpg'
+    "/call2-1.jpg",
+    "/call2-2.jpg",
+    "/call2-3.jpg",
+    "/call2-4.jpg",
+    "/call2-5.jpg",
   ];
 
   useEffect(() => {
@@ -39,8 +60,8 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
     // Fetch analysis data and agent status
     if (sessionId) {
       fetch(`${import.meta.env.VITE_BACKEND_URL}/api/status/${sessionId}`)
-        .then(res => res.json())
-        .then(data => {
+        .then((res) => res.json())
+        .then((data) => {
           if (data.success) {
             if (data.analysis) {
               setAnalysis(JSON.parse(data.analysis));
@@ -48,56 +69,91 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
             if (data.secondCallAgentId) {
               setSecondCallAgentId(data.secondCallAgentId);
             }
+            if (data.secondCallStatus) {
+              setSecondCallStatus(data.secondCallStatus);
+            }
+            if (data.secondCallMillisSessionId) {
+              setSecondCallMillisSessionId(data.secondCallMillisSessionId);
+            }
             // Store the previous Millis session ID
             if (data.millisSessionId) {
               setPreviousSessionId(data.millisSessionId);
             }
           }
         })
-        .catch(err => console.error('Error fetching status:', err));
+        .catch((err) => console.error("Error fetching status:", err));
     }
+
+    // Preload images
+    const loadImage = (src: string, index: number) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => {
+        setImagesLoaded((prev) => {
+          const newState = [...prev];
+          newState[index] = true;
+          return newState;
+        });
+      };
+    };
+
+    // Initialize imagesLoaded array
+    setImagesLoaded(new Array(images.length).fill(false));
+
+    // Start loading all images
+    images.forEach((src, index) => loadImage(src, index));
 
     // Keyboard navigation
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp') {
-        setCurrentImageIndex(prev => Math.max(0, prev - 1));
-      } else if (e.key === 'ArrowDown') {
-        setCurrentImageIndex(prev => Math.min(images.length - 1, prev + 1));
+      if (e.key === "ArrowUp") {
+        setCurrentImageIndex((prev) => Math.max(0, prev - 1));
+      } else if (e.key === "ArrowDown") {
+        setCurrentImageIndex((prev) => Math.min(images.length - 1, prev + 1));
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown);
       stopCall();
       if (durationInterval.current) {
         clearInterval(durationInterval.current);
       }
     };
-  }, [sessionId]);
+  }, [sessionId, images.length]);
+
+  // Check if all images are loaded
+  useEffect(() => {
+    if (
+      imagesLoaded.length === images.length &&
+      imagesLoaded.every((loaded) => loaded)
+    ) {
+      setAllImagesLoaded(true);
+    }
+  }, [imagesLoaded]);
 
   const createSecondAgent = async () => {
     try {
       const response = await axios.post(
-        `${import.meta.env.VITE_BACKEND_URL}/api/sessions/${sessionId}/create-second-agent`
+        `${import.meta.env.VITE_BACKEND_URL}/api/sessions/${sessionId}/create-second-agent`,
       );
       if (response.data.success) {
         setSecondCallAgentId(response.data.agentId);
       }
     } catch (error) {
-      console.error('Error creating second agent:', error);
+      console.error("Error creating second agent:", error);
     }
   };
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
   const startCall = async () => {
-    if (!secondCallAgentId) { 
-      console.error('Second agent not created yet');
+    if (!secondCallAgentId) {
+      console.error("Second agent not created yet");
       return;
     }
 
@@ -105,65 +161,72 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
 
     try {
       mediaStream.current = await navigator.mediaDevices.getUserMedia({
-        audio: true
+        audio: true,
       });
 
       msClient.current = Millis.createClient({
         publicKey: import.meta.env.VITE_MILLIS_PUBLIC_KEY,
         audio: {
-          stream: mediaStream.current
-        }
+          stream: mediaStream.current,
+        },
       });
 
-      msClient.current.on('onopen', () => {
-        console.log('WebSocket connection opened');
-        setConnectionQuality('good');
+      msClient.current.on("onopen", () => {
+        console.log("WebSocket connection opened");
+        setConnectionQuality("good");
       });
 
-      msClient.current.on('onready', async (payload: { session_id: string }) => {
-        console.log('Client is ready, session ID:', payload.session_id);
-        
-        try {
-          await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/sessions/${sessionId}/millis-second-call`, {
-            millisSessionId: payload.session_id
-          });
-        } catch (error) {
-          console.error('Failed to update Millis session ID:', error);
-        }
+      msClient.current.on(
+        "onready",
+        async (payload: { session_id: string }) => {
+          console.log("Client is ready, session ID:", payload.session_id);
 
-        setIsCallActive(true);
-        setIsConnecting(false);
+          try {
+            await axios.post(
+              `${import.meta.env.VITE_BACKEND_URL}/api/sessions/${sessionId}/millis-second-call`,
+              {
+                millisSessionId: payload.session_id,
+              },
+            );
+          } catch (error) {
+            console.error("Failed to update Millis session ID:", error);
+          }
 
-        durationInterval.current = setInterval(() => {
-          setCallDuration(prev => prev + 1);
-        }, 1000);
-      });
+          setIsCallActive(true);
+          setIsConnecting(false);
 
-      msClient.current.on('onsessionended', () => {
+          durationInterval.current = setInterval(() => {
+            setCallDuration((prev) => prev + 1);
+          }, 1000);
+        },
+      );
+
+      msClient.current.on("onsessionended", () => {
         stopCall();
       });
 
-      msClient.current.on('onclose', () => {
+      msClient.current.on("onclose", () => {
         stopCall();
       });
 
-      msClient.current.on('onerror', (error: any) => {
-        console.error('WebSocket error:', error);
-        setConnectionQuality('poor');
+      msClient.current.on("onerror", (error: any) => {
+        console.error("WebSocket error:", error);
+        setConnectionQuality("poor");
       });
 
       // Start the conversation with the second agent and include session continuation
       await msClient.current.start({
         agent: {
-          agent_id: secondCallAgentId
+          agent_id: secondCallAgentId,
         },
-        session_continuation: previousSessionId ? {
-          session_id: previousSessionId
-        } : undefined
+        session_continuation: previousSessionId
+          ? {
+              session_id: previousSessionId,
+            }
+          : undefined,
       });
-
     } catch (error) {
-      console.error('Error starting call:', error);
+      console.error("Error starting call:", error);
       setIsConnecting(false);
       stopCall();
     }
@@ -173,19 +236,24 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
     if (msClient.current) {
       msClient.current.stop();
       msClient.current = null;
-      
-      // Update second call status to completed
-      axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/sessions/${sessionId}/second-call-complete`)
-        .catch(error => console.error('Error updating second call status:', error));
+
+      // Update second call status and end time
+      axios
+        .post(
+          `${import.meta.env.VITE_BACKEND_URL}/api/sessions/${sessionId}/second-call-complete`,
+        )
+        .catch((error) =>
+          console.error("Error updating second call status:", error),
+        );
     }
 
     if (mediaStream.current) {
-      mediaStream.current.getTracks().forEach(track => track.stop());
+      mediaStream.current.getTracks().forEach((track) => track.stop());
       mediaStream.current = null;
     }
 
     setIsCallActive(false);
-    setConnectionQuality('none');
+    setConnectionQuality("none");
     setCallDuration(0);
     setIsConnecting(false);
   };
@@ -199,6 +267,19 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
       }
     }
   };
+
+  if (!allImagesLoaded) {
+    return (
+      <div className="w-full h-[500px] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Spinner size="lg" color="primary" />
+          <p className="text-lg text-primary/70">
+            Laster inn presentasjonen...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-7xl mx-auto">
@@ -219,9 +300,9 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
               key={index}
               onClick={() => setCurrentImageIndex(index)}
               className={`w-4 h-4 rounded-full transition-all border-2 ${
-                currentImageIndex === index 
-                  ? 'bg-accent border-accent scale-125' 
-                  : 'bg-gray-100 border-gray-300 hover:bg-accent/20 hover:border-accent/50'
+                currentImageIndex === index
+                  ? "bg-accent border-accent scale-125"
+                  : "bg-gray-100 border-gray-300 hover:bg-accent/20 hover:border-accent/50"
               }`}
             />
           ))}
@@ -236,29 +317,35 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
                 src={src}
                 alt={`Presentation slide ${index + 1}`}
                 className={`absolute inset-0 w-full h-full object-contain transition-all duration-500 p-4 ${
-                  currentImageIndex === index 
-                    ? 'opacity-100 scale-100' 
-                    : 'opacity-0 scale-95'
+                  currentImageIndex === index
+                    ? "opacity-100 scale-100"
+                    : "opacity-0 scale-95"
                 }`}
               />
             ))}
 
             {/* Navigation Arrows */}
             <button
-              onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
+              onClick={() =>
+                setCurrentImageIndex((prev) => Math.max(0, prev - 1))
+              }
               className="absolute left-1/2 top-4 -translate-x-1/2 bg-white/90 text-accent p-2 rounded-full hover:bg-white shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:hover:scale-100"
               disabled={currentImageIndex === 0}
             >
               <ChevronUp size={24} />
             </button>
             <button
-              onClick={() => setCurrentImageIndex(prev => Math.min(images.length - 1, prev + 1))}
+              onClick={() =>
+                setCurrentImageIndex((prev) =>
+                  Math.min(images.length - 1, prev + 1),
+                )
+              }
               className="absolute left-1/2 bottom-4 -translate-x-1/2 bg-white/90 text-accent p-2 rounded-full hover:bg-white shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:hover:scale-100"
               disabled={currentImageIndex === images.length - 1}
             >
               <ChevronDown size={24} />
             </button>
-            
+
             {/* Mobile Navigation Dots */}
             <div className="lg:hidden absolute bottom-6 right-6 flex gap-3">
               {images.map((_, index) => (
@@ -266,9 +353,9 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
                   key={index}
                   onClick={() => setCurrentImageIndex(index)}
                   className={`w-3 h-3 rounded-full transition-all border ${
-                    currentImageIndex === index 
-                      ? 'bg-accent border-accent' 
-                      : 'bg-white/80 border-gray-400 hover:bg-accent/20'
+                    currentImageIndex === index
+                      ? "bg-accent border-accent"
+                      : "bg-white/80 border-gray-400 hover:bg-accent/20"
                   }`}
                 />
               ))}
@@ -282,9 +369,9 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
                 <button
                   onClick={toggleMute}
                   className={`p-4 rounded-full transition-all duration-300 shadow-lg hover:scale-110 ${
-                    isMuted 
-                      ? 'bg-red-500 text-white hover:bg-red-600' 
-                      : 'bg-white text-accent hover:bg-gray-50'
+                    isMuted
+                      ? "bg-red-500 text-white hover:bg-red-600"
+                      : "bg-white text-accent hover:bg-gray-50"
                   }`}
                 >
                   {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
@@ -295,7 +382,9 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
                 >
                   End Call
                 </button>
-                <div className="text-lg font-mono font-medium bg-gray-100 px-4 py-2 rounded-full">{formatDuration(callDuration)}</div>
+                <div className="text-lg font-mono font-medium bg-gray-100 px-4 py-2 rounded-full">
+                  {formatDuration(callDuration)}
+                </div>
               </>
             ) : (
               <button
@@ -303,7 +392,13 @@ export function InteractiveAvatar({ sessionId }: InteractiveAvatarProps) {
                 disabled={isConnecting || !secondCallAgentId}
                 className="bg-accent text-white px-10 py-4 rounded-full hover:bg-accent/90 transition-all shadow-lg hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 text-lg font-medium"
               >
-                {isConnecting ? 'Connecting...' : !secondCallAgentId ? 'Preparing...' : 'Start Call'}
+                {isConnecting
+                  ? "Connecting..."
+                  : !secondCallAgentId
+                    ? "Preparing..."
+                    : secondCallStatus === STATUS.SECOND_CALL.COMPLETED
+                      ? "Call Completed"
+                      : "Start Call"}
               </button>
             )}
           </div>

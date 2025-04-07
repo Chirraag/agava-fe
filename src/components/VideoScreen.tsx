@@ -1,5 +1,5 @@
-import React from 'react';
-import ReactPlayer from 'react-player';
+import React from "react";
+import ReactPlayer from "react-player";
 
 interface VideoScreenProps {
   onComplete: () => void;
@@ -14,16 +14,18 @@ export function VideoScreen({ onComplete }: VideoScreenProps) {
         </h2>
         <p className="text-xl mb-4">Si hei til vår svenske kollega Amelia!</p>
         <p className="text-lg mb-6">
-          Amelia vil på 3 minutter ta deg igjennom hvordan Bantaii-appen debriefer kundemøter med salgsmetodene BANT og MEDDIC.
+          Amelia vil på 3 minutter ta deg igjennom hvordan Bantaii-appen
+          debriefer kundemøter med salgsmetodene BANT og MEDDIC.
         </p>
         <p className="text-lg mb-8 text-accent font-medium">
-          Obs! Forbered noen Bantaii spørsmål til ditt <i>live</i> møte med Sofia i steg 2.
+          Obs! Forbered noen Bantaii spørsmål til ditt <i>live</i> møte med
+          Sofia i steg 2.
         </p>
 
         <div className="max-w-4xl mx-auto mb-8">
           <div className="relative aspect-video rounded-xl overflow-hidden shadow-xl">
             <ReactPlayer
-              url="/placeholder.mov"
+              url="/example-vid.mp4"
               width="100%"
               height="100%"
               controls={true}
@@ -33,7 +35,7 @@ export function VideoScreen({ onComplete }: VideoScreenProps) {
           </div>
         </div>
 
-        <button 
+        <button
           onClick={onComplete}
           className="bg-accent text-white py-3 px-8 rounded-full font-medium text-lg hover:bg-accent/90 transition-colors shadow-lg"
         >
